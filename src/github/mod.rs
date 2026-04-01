@@ -16,6 +16,7 @@ pub struct GistFile {
 #[derive(Debug, Deserialize)]
 pub struct Gist {
     pub id: String,
+    pub html_url: String,
     pub description: Option<String>,
     pub files: HashMap<String, GistFile>,
 }
