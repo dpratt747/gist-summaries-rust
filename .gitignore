@@ -1,3 +1,7 @@
-/target
+src-tauri/target
+front-end/node_modules
+front-end/dist
 .env
 .idea
+src-tauri/gen/
+

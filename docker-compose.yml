@@ -1,6 +1,8 @@
 services:
   gist-summary:
     build: .
+    ports:
+      - "8080:8080"
     models:
       llm:
         endpoint_var: OPENAI_API_BASE_URL
@@ -26,7 +28,7 @@ services:
 
 models:
   llm:
-    model: ai/llama3.2
+    model: ai/gemma3:1B-Q4_K_M
 
 volumes:
   open_webui_data:
