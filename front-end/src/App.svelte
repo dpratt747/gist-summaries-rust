@@ -4,7 +4,6 @@
   interface GistFileRow {
     filename: string
     gist_url: string
-    content: string
   }
 
   let gists = $state<GistFileRow[]>([])
@@ -49,6 +48,7 @@
   const CALL_DELAY_MS = 300
 
   async function generateSummaries() {
+    if (summarising) return
     summarising = true
     summariesStarted = true
     summarisedCount = 0
@@ -56,10 +56,10 @@
     try {
       for (const gist of gists) {
         const summary = await invoke<string>('summarise_file', {
+          gistUrl: gist.gist_url,
           filename: gist.filename,
-          content: gist.content,
         })
-        summaries = { ...summaries, [gist.filename + gist.gist_url]: summary }
+        summaries = { ...summaries, [`${gist.gist_url}\0${gist.filename}`]: summary }
         summarisedCount += 1
         // Brief pause so the local model can release CPU between inferences
         await new Promise(r => setTimeout(r, CALL_DELAY_MS))
@@ -138,7 +138,7 @@
       </thead>
       <tbody>
         {#each gists as gist}
-          {@const key = gist.filename + gist.gist_url}
+          {@const key = `${gist.gist_url}\0${gist.filename}`}
           <tr>
             <td class="filename">{gist.filename}</td>
             <td>
@@ -180,7 +180,7 @@
   .toolbar {
     display: flex;
     gap: 10px;
-    margin-bottom: 4px;
+    margin-bottom: 16px;
   }
 
   input[type='text'] {
