@@ -33,13 +33,12 @@ pub struct GithubClient {
 }
 
 impl GithubClient {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         let client = Client::builder()
             .user_agent("gist-summary")
-            .build()
-            .expect("failed to build HTTP client");
+            .build()?;
         let token = env::var("GITHUB_TOKEN").ok();
-        Self { client, token }
+        Ok(Self { client, token })
     }
 
     pub fn with_token(token: String) -> Self {
@@ -63,26 +62,40 @@ impl GithubClient {
     }
 
     pub async fn get_gists(&self, user: &str) -> Result<Vec<GistsInformation>> {
-        let url = format!("https://api.github.com/users/{user}/gists");
-        let response = self.auth_request(&url).send().await?;
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("GitHub API request failed with status {status}: {body}");
-        }
-        let mut gists: Vec<GistsInformation> = response.json().await?;
+        let mut all_gists: Vec<GistsInformation> = Vec::new();
+        let mut page = 1u32;
 
-        for gist in &mut gists {
+        loop {
+            let url = format!(
+                "https://api.github.com/users/{user}/gists?per_page=100&page={page}"
+            );
+            let response = self.auth_request(&url).send().await?;
+            let status = response.status();
+            if !status.is_success() {
+                let body = response.text().await.unwrap_or_default();
+                anyhow::bail!("GitHub API request failed with status {status}: {body}");
+            }
+            let gists: Vec<GistsInformation> = response.json().await?;
+            let count = gists.len();
+            all_gists.extend(gists);
+            if count < 100 {
+                break;
+            }
+            page += 1;
+        }
+
+        for gist in &mut all_gists {
             for file in gist.files.values_mut() {
-                file.content = Content(self.auth_request(&file.raw_url.0)
-                    .send()
-                    .await?
-                    .text()
-                    .await?);
+                file.content = Content(
+                    self.auth_request(&file.raw_url.0)
+                        .send()
+                        .await?
+                        .text()
+                        .await?,
+                );
             }
         }
 
-        Ok(gists)
+        Ok(all_gists)
     }
 }
-
