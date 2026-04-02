@@ -14,7 +14,7 @@ env:
 jobs:
   build:
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - os: macos-latest
@@ -104,8 +104,16 @@ jobs:
         run: mkdir -p backend/models && touch backend/models/.keep
         shell: bash
 
+      - name: Build frontend
+        run: cd front-end && npm run build
+
       - name: Build Tauri app
-        run: cd front-end && npx tauri build --target ${{ matrix.target }}
+        shell: bash
+        run: |
+          DIST_PATH="$(cd front-end/dist && pwd)"
+          cd front-end
+          TAURI_CONFIG="{\"build\":{\"frontendDist\":\"$DIST_PATH\",\"beforeBuildCommand\":\"\",\"beforeDevCommand\":\"\"}}" \
+            npx tauri build --target ${{ matrix.target }}
 
       - name: Collect artifacts (macOS)
         if: runner.os == 'macOS'
