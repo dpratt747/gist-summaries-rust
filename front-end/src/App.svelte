@@ -14,6 +14,7 @@
   let summarisedCount = $state(0)
   let error = $state('')
   let username = $state('')
+  let summariesStarted = $state(false)
 
   async function loadGists() {
     if (!username.trim()) {
@@ -24,6 +25,7 @@
     error = ''
     summaries = {}
     summarisedCount = 0
+    summariesStarted = false
     try {
       gists = await invoke<GistFileRow[]>('get_gists', { username: username.trim() })
     } catch (e) {
@@ -37,6 +39,7 @@
 
   async function generateSummaries() {
     summarising = true
+    summariesStarted = true
     summarisedCount = 0
     error = ''
     try {
@@ -96,7 +99,7 @@
         <tr>
           <th>Filename</th>
           <th>Gist URL</th>
-          <th>Summary</th>
+          {#if summariesStarted}<th>Summary</th>{/if}
         </tr>
       </thead>
       <tbody>
@@ -109,6 +112,7 @@
                 {gist.gist_url}
               </a>
             </td>
+            {#if summariesStarted}
             <td class="summary">
               {#if summaries[key]}
                 {summaries[key]}
@@ -118,6 +122,7 @@
                 <span class="empty">—</span>
               {/if}
             </td>
+            {/if}
           </tr>
         {/each}
       </tbody>
