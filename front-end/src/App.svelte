@@ -13,10 +13,11 @@
   let summarisedCount = $state(0)
   let error = $state('')
   let username = $state('')
-  let summariesStarted = $state(false)
   let githubToken = $state('')
   let tokenConfirmed = $state(false)
   let saveToken = $state(false)
+
+  let summariesStarted = $derived(summarisedCount > 0 || summarising)
 
   invoke<string>('load_token').then((saved) => {
     if (saved) {
@@ -46,7 +47,6 @@
     error = ''
     summaries = {}
     summarisedCount = 0
-    summariesStarted = false
     try {
       gists = await invoke<GistFileRow[]>('get_gists', { username: username.trim(), token: githubToken.trim() })
     } catch (e) {
@@ -56,23 +56,20 @@
     }
   }
 
-  const CALL_DELAY_MS = 100
-
   async function generateSummaries() {
     if (summarising) return
     summarising = true
-    summariesStarted = true
     summarisedCount = 0
     error = ''
     try {
       for (const gist of gists) {
-        const summary = await invoke<string>('summarise_file', {
+        const key = `${gist.gist_url}\0${gist.filename}`
+        summaries[key] = await invoke<string>('summarise_file', {
           gistUrl: gist.gist_url,
           filename: gist.filename,
         })
-        summaries = { ...summaries, [`${gist.gist_url}\0${gist.filename}`]: summary }
         summarisedCount += 1
-        await new Promise(r => setTimeout(r, CALL_DELAY_MS))
+        await new Promise(r => setTimeout(r, 100)) // small delay to allow UI updates between summaries - reduce lag
       }
     } catch (e) {
       error = String(e)

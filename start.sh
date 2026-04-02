@@ -11,7 +11,6 @@ if [ -f .env ]; then
 fi
 
 # Ensure the Ollama sidecar binary is downloaded.
-SIDECAR_DIR="backend/binaries"
 ARCH="$(uname -m)"
 case "$ARCH" in
   arm64)  TARGET="aarch64-apple-darwin" ;;
@@ -19,17 +18,15 @@ case "$ARCH" in
   *) echo "Unsupported arch: $ARCH"; exit 1 ;;
 esac
 
-SIDECAR_BIN="${SIDECAR_DIR}/ollama-${TARGET}"
+SIDECAR_BIN="backend/ollama-${TARGET}"
 if [ ! -f "$SIDECAR_BIN" ] || [ "$(wc -c < "$SIDECAR_BIN" | tr -d ' ')" -lt 1000000 ]; then
   echo "Downloading Ollama sidecar binary..."
-  (cd "$SIDECAR_DIR" && ./download-ollama.sh)
+  (cd backend/binaries && ./download-ollama.sh)
 fi
 
 # In dev mode, Tauri resolves sidecars relative to the compiled binary
 # (target/debug/) using just the program name — no target triple suffix.
-TARGET_BIN_DIR="target/debug/binaries"
-mkdir -p "$TARGET_BIN_DIR"
-ln -sf "$(pwd)/${SIDECAR_BIN}" "${TARGET_BIN_DIR}/ollama"
+ln -sf "$(pwd)/${SIDECAR_BIN}" "target/debug/ollama"
 
 echo "Installing frontend dependencies..."
 npm --prefix front-end install

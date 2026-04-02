@@ -7,7 +7,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
+# Output to backend/ (parent dir) — Tauri expects ollama-<triple> next to Cargo.toml
+OUTPUT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$OUTPUT_DIR"
 
 VERSION="${1:-v0.19.0}"
 BASE_URL="https://github.com/ollama/ollama/releases/download/${VERSION}"

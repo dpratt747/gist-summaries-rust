@@ -25,7 +25,7 @@
     "active": true,
     "targets": "all",
     "externalBin": [
-      "binaries/ollama"
+      "ollama"
     ],
     "resources": [
       "models/**/*"

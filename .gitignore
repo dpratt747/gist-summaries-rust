@@ -1,6 +1,7 @@
 target/
 
 backend/gen/
+backend/ollama-*
 
 front-end/node_modules/
 front-end/dist/

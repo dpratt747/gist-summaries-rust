@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use anyhow::Result;
 use reqwest::Client;
 use serde::Deserialize;
-use std::env;
 
 #[derive(Debug, Deserialize, Hash, Eq, PartialEq)]
 pub struct FileName(pub String);
@@ -33,16 +32,12 @@ pub struct GithubClient {
 }
 
 impl GithubClient {
-
     pub fn with_token(token: String) -> Result<Self> {
-        let client = Client::builder()
-            .user_agent("gist-summary")
-            .build()?;
+        let client = Client::builder().user_agent("gist-summary").build()?;
         let trimmed = token.trim().to_string();
-        // Use the provided token, falling back to the GITHUB_TOKEN env var
         let resolved = (!trimmed.is_empty())
             .then_some(trimmed)
-            .or_else(|| env::var("GITHUB_TOKEN").ok());
+            .or_else(|| std::env::var("GITHUB_TOKEN").ok());
         Ok(Self { client, token: resolved })
     }
 
@@ -80,11 +75,7 @@ impl GithubClient {
         for gist in &mut all_gists {
             for file in gist.files.values_mut() {
                 file.content = Content(
-                    self.auth_request(&file.raw_url.0)
-                        .send()
-                        .await?
-                        .text()
-                        .await?,
+                    self.auth_request(&file.raw_url.0).send().await?.text().await?,
                 );
             }
         }

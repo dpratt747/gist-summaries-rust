@@ -113,7 +113,7 @@ async fn save_token(token: String) -> Result<(), String> {
     } else {
         Vec::new()
     };
-    let token_line = format!("GITHUB_TOKEN={}", token);
+    let token_line = format!("GITHUB_TOKEN={}", token.trim());
     let mut found = false;
     for line in &mut lines {
         if line.starts_with("GITHUB_TOKEN=") {
@@ -125,8 +125,7 @@ async fn save_token(token: String) -> Result<(), String> {
     if !found {
         lines.push(token_line);
     }
-    std::fs::write(&path, lines.join("\n") + "\n").map_err(|e| e.to_string())?;
-    Ok(())
+    std::fs::write(&path, lines.join("\n") + "\n").map_err(|e| e.to_string())
 }
 
 fn main() {
@@ -134,7 +133,6 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let handle = app.handle().clone();
-            // Start Ollama sidecar and wait for it to be ready (including model pull).
             let ollama = tauri::async_runtime::block_on(async {
                 ollama::OllamaProcess::start(&handle).await
             })
