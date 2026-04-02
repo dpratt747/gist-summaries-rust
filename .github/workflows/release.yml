@@ -104,6 +104,16 @@ jobs:
         run: mkdir -p backend/models && touch backend/models/.keep
         shell: bash
 
+      # tauri-action looks for src-tauri/ by default. Symlink so it finds backend/.
+      - name: Symlink backend as src-tauri (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: ln -s ../backend front-end/src-tauri
+
+      - name: Symlink backend as src-tauri (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: mklink /J front-end\src-tauri %CD%\backend
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
