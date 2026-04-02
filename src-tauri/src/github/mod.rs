@@ -42,6 +42,18 @@ impl GithubClient {
         Self { client, token }
     }
 
+    pub fn with_token(token: String) -> Self {
+        let client = Client::builder()
+            .user_agent("gist-summary")
+            .build()
+            .expect("failed to build HTTP client");
+        // Use the provided token, falling back to the GITHUB_TOKEN env var
+        let resolved = (!token.is_empty())
+            .then_some(token)
+            .or_else(|| env::var("GITHUB_TOKEN").ok());
+        Self { client, token: resolved }
+    }
+
     fn auth_request(&self, url: &str) -> reqwest::RequestBuilder {
         let req = self.client.get(url);
         match &self.token {

@@ -15,6 +15,17 @@
   let error = $state('')
   let username = $state('')
   let summariesStarted = $state(false)
+  let githubToken = $state('')
+  let tokenConfirmed = $state(false)
+
+  function confirmToken() {
+    if (!githubToken.trim()) {
+      error = 'Please enter a GitHub token.'
+      return
+    }
+    error = ''
+    tokenConfirmed = true
+  }
 
   async function loadGists() {
     if (!username.trim()) {
@@ -27,7 +38,7 @@
     summarisedCount = 0
     summariesStarted = false
     try {
-      gists = await invoke<GistFileRow[]>('get_gists', { username: username.trim() })
+      gists = await invoke<GistFileRow[]>('get_gists', { username: username.trim(), token: githubToken.trim() })
     } catch (e) {
       error = String(e)
     } finally {
@@ -63,6 +74,29 @@
 
 <main>
   <h1>🗂 Gist Summary</h1>
+
+  {#if !tokenConfirmed}
+    <div class="token-screen">
+      <p class="token-hint">Enter your GitHub personal access token to continue.</p>
+      <div class="token-row">
+        <input
+          type="password"
+          placeholder="ghp_••••••••••••••••••••"
+          bind:value={githubToken}
+          onkeydown={(e) => e.key === 'Enter' && confirmToken()}
+        />
+        <button onclick={confirmToken}>Continue</button>
+      </div>
+      {#if error}<p class="error">✗ {error}</p>{/if}
+      <p class="token-help">
+        Generate one at
+        <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">
+          github.com/settings/tokens
+        </a>
+        — only <code>gist:read</code> scope is required.
+      </p>
+    </div>
+  {:else}
 
   <div class="toolbar">
     <input
@@ -127,6 +161,7 @@
         {/each}
       </tbody>
     </table>
+  {/if}
   {/if}
 </main>
 
@@ -204,4 +239,28 @@
   .summary { max-width: 400px; }
   .pending { color: #8b949e; font-style: italic; }
   .empty { color: #484f58; }
+
+  /* ── Token screen ─────────────────────────────────────────────────────────── */
+  .token-screen {
+    max-width: 480px;
+    margin-top: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .token-hint { color: #c9d1d9; font-size: 0.95rem; }
+  .token-row { display: flex; gap: 10px; }
+  .token-row input[type='password'] {
+    flex: 1;
+    background: #161b22;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: monospace;
+  }
+  .token-row input[type='password']:focus { outline: none; border-color: #58a6ff; }
+  .token-help { font-size: 0.8rem; color: #8b949e; }
+  .token-help code { color: #79c0ff; }
 </style>

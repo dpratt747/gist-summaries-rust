@@ -18,8 +18,8 @@ struct GistSummaryRow {
 }
 
 #[tauri::command]
-async fn get_gists(username: String) -> Result<Vec<GistFileRow>, String> {
-    let github = github::GithubClient::new();
+async fn get_gists(username: String, token: String) -> Result<Vec<GistFileRow>, String> {
+    let github = github::GithubClient::with_token(token);
     let gists = github
         .get_gists(&username)
         .await
