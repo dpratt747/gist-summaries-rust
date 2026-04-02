@@ -107,13 +107,21 @@ jobs:
       - name: Build frontend
         run: cd front-end && npm run build
 
-      - name: Build Tauri app
-        shell: bash
+      - name: Build Tauri app (macOS/Linux)
+        if: runner.os != 'Windows'
         run: |
-          DIST_PATH="$(cd front-end/dist && pwd)"
           cd front-end
-          TAURI_CONFIG="{\"build\":{\"frontendDist\":\"$DIST_PATH\",\"beforeBuildCommand\":\"\",\"beforeDevCommand\":\"\"}}" \
-            npx tauri build --target ${{ matrix.target }}
+          npx tauri build --target ${{ matrix.target }} \
+            --config '{"build":{"beforeBuildCommand":"","beforeDevCommand":""}}'
+
+      - name: Build Tauri app (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd front-end
+          $distPath = (Resolve-Path "dist").Path -replace '\\','/'
+          $config = "{`"build`":{`"frontendDist`":`"$distPath`",`"beforeBuildCommand`":`"`",`"beforeDevCommand`":`"`"}}"
+          npx tauri build --target ${{ matrix.target }} --config $config
 
       - name: Collect artifacts (macOS)
         if: runner.os == 'macOS'
