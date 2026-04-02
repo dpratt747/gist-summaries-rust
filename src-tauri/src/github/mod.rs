@@ -33,12 +33,16 @@ pub struct GithubClient {
 }
 
 impl GithubClient {
-    pub fn new() -> Result<Self> {
+
+    pub fn new(token: String) -> Result<Self> {
         let client = Client::builder()
             .user_agent("gist-summary")
             .build()?;
-        let token = env::var("GITHUB_TOKEN").ok();
-        Ok(Self { client, token })
+        // Use the provided token, falling back to the GITHUB_TOKEN env var
+        let resolved = (!token.is_empty())
+            .then_some(token)
+            .or_else(|| env::var("GITHUB_TOKEN").ok());
+        Ok(Self { client, token: resolved })
     }
 
     pub fn with_token(token: String) -> Self {
