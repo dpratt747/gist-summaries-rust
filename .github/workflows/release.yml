@@ -21,7 +21,7 @@ jobs:
             target: aarch64-apple-darwin
             ollama_url_suffix: ollama-darwin.tgz
             ollama_archive: tgz
-          - os: macos-13
+          - os: macos-latest
             target: x86_64-apple-darwin
             ollama_url_suffix: ollama-darwin.tgz
             ollama_archive: tgz
@@ -51,6 +51,10 @@ jobs:
 
       - name: Install frontend dependencies
         run: cd front-end && npm install
+
+      - name: Symlink backend for Tauri CLI
+        run: ln -s ../backend front-end/src-tauri
+        shell: bash
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
