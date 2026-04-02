@@ -50,9 +50,8 @@ jobs:
           node-version: 22
 
       - name: Install frontend dependencies
-        run: npm --prefix front-end install
+        run: cd front-end && npm install
 
-      # Linux: install system dependencies required by Tauri
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -64,7 +63,6 @@ jobs:
             patchelf \
             zstd
 
-      # Download and extract the Ollama sidecar binary
       - name: Download Ollama sidecar (macOS/Linux)
         if: runner.os != 'Windows'
         run: |
@@ -98,32 +96,57 @@ jobs:
           Remove-Item -Recurse -Force ollama-archive.zip, ollama-extracted
           Get-Item "ollama-${{ matrix.target }}.exe"
 
-      # Ensure models directory has at least one file so the Tauri resources glob doesn't fail.
-      # Users will pull the model on first launch.
       - name: Create models directory
         run: mkdir -p backend/models && touch backend/models/.keep
         shell: bash
 
-      # tauri-action looks for src-tauri/ by default. Symlink so it finds backend/.
-      - name: Symlink backend as src-tauri (macOS/Linux)
-        if: runner.os != 'Windows'
-        run: ln -s ../backend front-end/src-tauri
-
-      - name: Symlink backend as src-tauri (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: mklink /J front-end\src-tauri %CD%\backend
-
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cd front-end && npx tauri build --target ${{ matrix.target }}
+
+      - name: Collect artifacts (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p artifacts
+          cp target/${{ matrix.target }}/release/bundle/dmg/*.dmg artifacts/ 2>/dev/null || true
+          ls -lh artifacts/
+
+      - name: Collect artifacts (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p artifacts
+          cp target/${{ matrix.target }}/release/bundle/deb/*.deb artifacts/ 2>/dev/null || true
+          cp target/${{ matrix.target }}/release/bundle/appimage/*.AppImage artifacts/ 2>/dev/null || true
+          ls -lh artifacts/
+
+      - name: Collect artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp target/${{ matrix.target }}/release/bundle/msi/*.msi artifacts/ 2>/dev/null || true
+          cp target/${{ matrix.target }}/release/bundle/nsis/*.exe artifacts/ 2>/dev/null || true
+          ls -lh artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tauriScript: npx tauri
-          projectPath: front-end
-          tagName: ${{ github.ref_name }}
-          releaseName: "Gist Summary ${{ github.ref_name }}"
-          releaseBody: "See the assets below to download for your platform."
-          releaseDraft: true
-          prerelease: false
-          args: --target ${{ matrix.target }}
+          name: gist-summary-${{ matrix.target }}
+          path: artifacts/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: "Gist Summary ${{ github.ref_name }}"
+          body: "See the assets below to download for your platform."
+          files: artifacts/*
