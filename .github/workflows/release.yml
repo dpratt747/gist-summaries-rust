@@ -10,6 +10,7 @@ permissions:
 
 env:
   OLLAMA_VERSION: v0.19.0
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -127,29 +128,18 @@ jobs:
           npx tauri build --target ${{ matrix.target }} \
             --config "{\"build\":{\"frontendDist\":\"${DIST_ABS}\",\"beforeBuildCommand\":\"\",\"beforeDevCommand\":\"\"}}"
 
-      - name: Collect artifacts (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/bundle/dmg/*.dmg artifacts/ 2>/dev/null || true
-          ls -lh artifacts/
-
-      - name: Collect artifacts (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/bundle/deb/*.deb artifacts/ 2>/dev/null || true
-          cp target/${{ matrix.target }}/release/bundle/appimage/*.AppImage artifacts/ 2>/dev/null || true
-          ls -lh artifacts/
-
-      - name: Collect artifacts (Windows)
-        if: runner.os == 'Windows'
+      - name: Collect artifacts
         shell: bash
         run: |
           mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/bundle/msi/*.msi artifacts/ 2>/dev/null || true
-          cp target/${{ matrix.target }}/release/bundle/nsis/*.exe artifacts/ 2>/dev/null || true
-          ls -lh artifacts/
+          # Tauri outputs to backend/target/ (via symlink from front-end/src-tauri/)
+          BUNDLE_DIR="backend/target/${{ matrix.target }}/release/bundle"
+          echo "Looking for bundles in: $BUNDLE_DIR"
+          find "$BUNDLE_DIR" -type f \( -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.exe" \) 2>/dev/null | while read f; do
+            echo "Found: $f"
+            cp "$f" artifacts/
+          done
+          ls -lh artifacts/ 2>/dev/null || echo "No artifacts found"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
