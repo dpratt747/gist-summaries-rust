@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  OLLAMA_VERSION: v0.19.0
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            ollama_url_suffix: ollama-darwin.tgz
+            ollama_archive: tgz
+          - os: macos-13
+            target: x86_64-apple-darwin
+            ollama_url_suffix: ollama-darwin.tgz
+            ollama_archive: tgz
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            ollama_url_suffix: ollama-linux-amd64.tar.zst
+            ollama_archive: zst
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            ollama_url_suffix: ollama-windows-amd64.zip
+            ollama_archive: zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend dependencies
+        run: npm --prefix front-end install
+
+      # Linux: install system dependencies required by Tauri
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            zstd
+
+      # Download and extract the Ollama sidecar binary
+      - name: Download Ollama sidecar (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: |
+          cd backend
+          URL="https://github.com/ollama/ollama/releases/download/${{ env.OLLAMA_VERSION }}/${{ matrix.ollama_url_suffix }}"
+          curl -fL "$URL" -o ollama-archive
+
+          if [ "${{ matrix.ollama_archive }}" = "tgz" ]; then
+            tar xzf ollama-archive
+          elif [ "${{ matrix.ollama_archive }}" = "zst" ]; then
+            zstd -d ollama-archive -o ollama-archive.tar
+            tar xf ollama-archive.tar
+          fi
+
+          FOUND="$(find . -name 'ollama' -type f ! -name '*.tgz' ! -name '*.tar' | head -1)"
+          cp "$FOUND" "ollama-${{ matrix.target }}"
+          chmod +x "ollama-${{ matrix.target }}"
+          rm -rf ollama-archive* bin/ lib/
+          ls -lh "ollama-${{ matrix.target }}"
+
+      - name: Download Ollama sidecar (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd backend
+          $url = "https://github.com/ollama/ollama/releases/download/${{ env.OLLAMA_VERSION }}/${{ matrix.ollama_url_suffix }}"
+          Invoke-WebRequest -Uri $url -OutFile ollama-archive.zip
+          Expand-Archive -Path ollama-archive.zip -DestinationPath ollama-extracted
+          $found = Get-ChildItem -Path ollama-extracted -Recurse -Filter "ollama.exe" | Select-Object -First 1
+          Copy-Item $found.FullName -Destination "ollama-${{ matrix.target }}.exe"
+          Remove-Item -Recurse -Force ollama-archive.zip, ollama-extracted
+          Get-Item "ollama-${{ matrix.target }}.exe"
+
+      # Ensure models directory has at least one file so the Tauri resources glob doesn't fail.
+      # Users will pull the model on first launch.
+      - name: Create models directory
+        run: mkdir -p backend/models && touch backend/models/.keep
+        shell: bash
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: npx tauri
+          projectPath: front-end
+          tagName: ${{ github.ref_name }}
+          releaseName: "Gist Summary ${{ github.ref_name }}"
+          releaseBody: "See the assets below to download for your platform."
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}

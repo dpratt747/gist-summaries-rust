@@ -69,8 +69,12 @@ async fn summarise_file(
             .ok_or_else(|| format!("no cached content for {filename}"))?
     };
     let prompt = format!(
-        "Summarise the following file ('{}') in one sentence:\n\n{}",
-        filename, content
+        "Below is the content of a file called '{filename}'.\n\
+         \n\
+         <file>\n{content}\n</file>\n\
+         \n\
+         Write exactly ONE short sentence summarising what this file does. \
+         Do not repeat the code. Do not use more than 30 words."
     );
     state
         .llm
