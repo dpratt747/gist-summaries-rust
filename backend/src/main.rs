@@ -1,11 +1,12 @@
 mod github;
 mod llm;
+mod ollama;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{Manager, State};
 
 #[derive(Debug, Serialize)]
 struct GistFileRow {
@@ -16,6 +17,7 @@ struct GistFileRow {
 struct AppState {
     llm: llm::LlmClient,
     gist_contents: Mutex<HashMap<String, String>>,
+    _ollama: ollama::OllamaProcess,
 }
 
 fn content_key(gist_url: &str, filename: &str) -> String {
@@ -129,9 +131,23 @@ async fn save_token(token: String) -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
-        .manage(AppState {
-            llm: llm::LlmClient::from_env(),
-            gist_contents: Mutex::new(HashMap::new()),
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            // Start Ollama sidecar and wait for it to be ready (including model pull).
+            let ollama = tauri::async_runtime::block_on(async {
+                ollama::OllamaProcess::start(&handle).await
+            })
+            .expect("failed to start Ollama sidecar");
+
+            let llm = llm::LlmClient::new(ollama::base_url(), ollama::model());
+
+            app.manage(AppState {
+                llm,
+                gist_contents: Mutex::new(HashMap::new()),
+                _ollama: ollama,
+            });
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![get_gists, summarise_file, load_token, save_token])
         .run(tauri::generate_context!())

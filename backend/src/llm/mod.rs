@@ -9,12 +9,8 @@ pub struct LlmClient {
 }
 
 impl LlmClient {
-    pub fn from_env() -> Self {
-        let base_url = std::env::var("OPENAI_API_BASE_URL")
-            .unwrap_or_else(|_| "http://model-runner.docker.internal/engines/v1".to_string());
-        let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| "local".to_string());
-        let model = std::env::var("OPENAI_MODEL")
-            .unwrap_or_else(|_| "ai/gemma3:1B-Q4_K_M".to_string());
+    pub fn new(base_url: String, model: String) -> Self {
+        let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| "ollama".to_string());
 
         let llm = OpenAI::default()
             .with_config(

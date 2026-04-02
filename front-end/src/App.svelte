@@ -56,7 +56,7 @@
     }
   }
 
-  const CALL_DELAY_MS = 300
+  const CALL_DELAY_MS = 100
 
   async function generateSummaries() {
     if (summarising) return
@@ -72,7 +72,6 @@
         })
         summaries = { ...summaries, [`${gist.gist_url}\0${gist.filename}`]: summary }
         summarisedCount += 1
-        // Brief pause so the local model can release CPU between inferences
         await new Promise(r => setTimeout(r, CALL_DELAY_MS))
       }
     } catch (e) {

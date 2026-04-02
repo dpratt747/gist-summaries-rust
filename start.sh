@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 set -e
 
 SCRIPT_DIR="${0:A:h}"
@@ -10,43 +10,29 @@ if [ -f .env ]; then
   set +a
 fi
 
-OPENAI_MODEL="${OPENAI_MODEL:-ai/gemma3:1B-Q4_K_M}"
-MODEL_RUNNER_URL="http://localhost:12434/engines/v1"
+# Ensure the Ollama sidecar binary is downloaded.
+SIDECAR_DIR="backend/binaries"
+ARCH="$(uname -m)"
+case "$ARCH" in
+  arm64)  TARGET="aarch64-apple-darwin" ;;
+  x86_64) TARGET="x86_64-apple-darwin" ;;
+  *) echo "Unsupported arch: $ARCH"; exit 1 ;;
+esac
 
-if ! docker info >/dev/null 2>&1; then
-  echo "Starting Docker Desktop..."
-  open -a "Docker Desktop"
-  attempts=0
-  until docker info >/dev/null 2>&1; do
-    attempts=$((attempts + 1))
-    if [ $attempts -ge 30 ]; then
-      echo "Docker Desktop did not start in time."
-      exit 1
-    fi
-    printf "."
-    sleep 2
-  done
-  echo "Docker Desktop is ready."
+SIDECAR_BIN="${SIDECAR_DIR}/ollama-${TARGET}"
+if [ ! -f "$SIDECAR_BIN" ] || [ "$(wc -c < "$SIDECAR_BIN" | tr -d ' ')" -lt 1000000 ]; then
+  echo "Downloading Ollama sidecar binary..."
+  (cd "$SIDECAR_DIR" && ./download-ollama.sh)
 fi
+
+# In dev mode, Tauri resolves sidecars relative to the compiled binary
+# (target/debug/) using just the program name — no target triple suffix.
+TARGET_BIN_DIR="target/debug/binaries"
+mkdir -p "$TARGET_BIN_DIR"
+ln -sf "$(pwd)/${SIDECAR_BIN}" "${TARGET_BIN_DIR}/ollama"
 
 echo "Installing frontend dependencies..."
 npm --prefix front-end install
-
-echo "Pulling model ${OPENAI_MODEL}..."
-docker model pull "$OPENAI_MODEL"
-
-echo "Waiting for model runner..."
-attempts=0
-until curl -sf "${MODEL_RUNNER_URL}/models" >/dev/null 2>&1; do
-  attempts=$((attempts + 1))
-  if [ $attempts -ge 30 ]; then
-    echo "Model runner not ready. Is Docker Desktop running?"
-    exit 1
-  fi
-  printf "."
-  sleep 2
-done
-echo "Model runner is ready."
 
 echo "Starting Vite dev server..."
 npm --prefix front-end run dev &
@@ -68,11 +54,7 @@ echo "Vite is ready."
 
 trap "kill $VITE_PID 2>/dev/null" EXIT
 
-echo "Starting Tauri app..."
-export OPENAI_API_BASE_URL="$MODEL_RUNNER_URL"
-export OPENAI_API_KEY="${OPENAI_API_KEY:-local}"
-export OPENAI_MODEL
+echo "Starting Tauri app (Ollama starts automatically as a sidecar)..."
 export GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 
-cargo run --manifest-path src-tauri/Cargo.toml
-
+cargo run --manifest-path backend/Cargo.toml

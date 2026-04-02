@@ -1,6 +1,6 @@
 target/
 
-src-tauri/gen/
+backend/gen/
 
 front-end/node_modules/
 front-end/dist/

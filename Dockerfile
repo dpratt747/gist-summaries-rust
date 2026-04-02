@@ -1,11 +1,11 @@
 FROM rust:1.85-slim AS builder
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY src-tauri/Cargo.toml src-tauri/Cargo.lock ./
-COPY src-tauri/src ./src
-COPY src-tauri/build.rs ./build.rs
-COPY src-tauri/tauri.conf.json ./tauri.conf.json
-COPY src-tauri/icons ./icons
+COPY backend/Cargo.toml backend/Cargo.lock ./
+COPY backend/src ./src
+COPY backend/build.rs ./build.rs
+COPY backend/tauri.conf.json ./tauri.conf.json
+COPY backend/icons ./icons
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
