@@ -132,14 +132,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts
-          # Tauri outputs to backend/target/ (via symlink from front-end/src-tauri/)
-          BUNDLE_DIR="backend/target/${{ matrix.target }}/release/bundle"
-          echo "Looking for bundles in: $BUNDLE_DIR"
-          find "$BUNDLE_DIR" -type f \( -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.exe" \) 2>/dev/null | while read f; do
+          echo "Searching for bundle outputs..."
+          find . -path "*/release/bundle/*" -type f \( -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.exe" \) 2>/dev/null | while read f; do
             echo "Found: $f"
             cp "$f" artifacts/
           done
-          ls -lh artifacts/ 2>/dev/null || echo "No artifacts found"
+          ls -lh artifacts/ || echo "No artifacts found"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
