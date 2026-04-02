@@ -14,7 +14,7 @@ env:
 jobs:
   build:
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest
@@ -52,9 +52,16 @@ jobs:
       - name: Install frontend dependencies
         run: cd front-end && npm install
 
-      - name: Symlink backend for Tauri CLI
+      # Tauri CLI looks for src-tauri/ under the project directory.
+      # Symlink it to backend/ so it finds tauri.conf.json.
+      - name: Link backend as src-tauri (macOS/Linux)
+        if: runner.os != 'Windows'
         run: ln -s ../backend front-end/src-tauri
-        shell: bash
+
+      - name: Link backend as src-tauri (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: mklink /D front-end\src-tauri ..\backend
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -107,21 +114,18 @@ jobs:
       - name: Build frontend
         run: cd front-end && npm run build
 
-      - name: Build Tauri app (macOS/Linux)
-        if: runner.os != 'Windows'
+      - name: Build Tauri app
+        shell: bash
         run: |
+          # Resolve absolute path to frontend dist so Tauri finds it regardless of CWD
+          DIST_ABS="$(cd front-end/dist && pwd)"
+          # On Windows (Git Bash), convert /d/... to D:/...
+          if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
+            DIST_ABS="$(cygpath -m "$DIST_ABS")"
+          fi
           cd front-end
           npx tauri build --target ${{ matrix.target }} \
-            --config '{"build":{"beforeBuildCommand":"","beforeDevCommand":""}}'
-
-      - name: Build Tauri app (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          cd front-end
-          $distPath = (Resolve-Path "dist").Path -replace '\\','/'
-          $config = "{`"build`":{`"frontendDist`":`"$distPath`",`"beforeBuildCommand`":`"`",`"beforeDevCommand`":`"`"}}"
-          npx tauri build --target ${{ matrix.target }} --config $config
+            --config "{\"build\":{\"frontendDist\":\"${DIST_ABS}\",\"beforeBuildCommand\":\"\",\"beforeDevCommand\":\"\"}}"
 
       - name: Collect artifacts (macOS)
         if: runner.os == 'macOS'
@@ -154,6 +158,7 @@ jobs:
           path: artifacts/*
 
   release:
+    if: always() && !cancelled()
     needs: build
     runs-on: ubuntu-latest
     steps:
