@@ -12,3 +12,4 @@ front-end/.svelte-kit/
 
 .idea/
 .DS_Store
+/.claude/
