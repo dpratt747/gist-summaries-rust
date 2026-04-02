@@ -78,13 +78,62 @@ async fn summarise_file(
         .map_err(|e| e.to_string())
 }
 
+fn env_path() -> Result<std::path::PathBuf, String> {
+    std::env::current_dir()
+        .map(|d| d.join(".env"))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn load_token() -> Result<String, String> {
+    let path = env_path()?;
+    if !path.exists() {
+        return Ok(String::new());
+    }
+    let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    for line in content.lines() {
+        if let Some(val) = line.strip_prefix("GITHUB_TOKEN=") {
+            return Ok(val.trim().to_string());
+        }
+    }
+    Ok(String::new())
+}
+
+#[tauri::command]
+async fn save_token(token: String) -> Result<(), String> {
+    let path = env_path()?;
+    let mut lines: Vec<String> = if path.exists() {
+        std::fs::read_to_string(&path)
+            .map_err(|e| e.to_string())?
+            .lines()
+            .map(String::from)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let token_line = format!("GITHUB_TOKEN={}", token);
+    let mut found = false;
+    for line in &mut lines {
+        if line.starts_with("GITHUB_TOKEN=") {
+            *line = token_line.clone();
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        lines.push(token_line);
+    }
+    std::fs::write(&path, lines.join("\n") + "\n").map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(AppState {
             llm: llm::LlmClient::from_env(),
             gist_contents: Mutex::new(HashMap::new()),
         })
-        .invoke_handler(tauri::generate_handler![get_gists, summarise_file])
+        .invoke_handler(tauri::generate_handler![get_gists, summarise_file, load_token, save_token])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -16,13 +16,24 @@
   let summariesStarted = $state(false)
   let githubToken = $state('')
   let tokenConfirmed = $state(false)
+  let saveToken = $state(false)
 
-  function confirmToken() {
+  invoke<string>('load_token').then((saved) => {
+    if (saved) {
+      githubToken = saved
+      tokenConfirmed = true
+    }
+  })
+
+  async function confirmToken() {
     if (!githubToken.trim()) {
       error = 'Please enter a GitHub token.'
       return
     }
     error = ''
+    if (saveToken) {
+      await invoke('save_token', { token: githubToken.trim() })
+    }
     tokenConfirmed = true
   }
 
@@ -87,6 +98,10 @@
         />
         <button onclick={confirmToken}>Continue</button>
       </div>
+      <label class="save-label">
+        <input type="checkbox" bind:checked={saveToken} />
+        Save token to .env
+      </label>
       {#if error}<p class="error">✗ {error}</p>{/if}
       <p class="token-help">
         Generate one at
@@ -240,7 +255,6 @@
   .pending { color: #8b949e; font-style: italic; }
   .empty { color: #484f58; }
 
-  /* ── Token screen ─────────────────────────────────────────────────────────── */
   .token-screen {
     max-width: 480px;
     margin-top: 40px;
@@ -263,4 +277,6 @@
   .token-row input[type='password']:focus { outline: none; border-color: #58a6ff; }
   .token-help { font-size: 0.8rem; color: #8b949e; }
   .token-help code { color: #79c0ff; }
+  .save-label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #8b949e; cursor: pointer; }
+  .save-label input[type='checkbox'] { accent-color: #58a6ff; cursor: pointer; }
 </style>

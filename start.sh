@@ -13,6 +13,22 @@ fi
 OPENAI_MODEL="${OPENAI_MODEL:-ai/gemma3:1B-Q4_K_M}"
 MODEL_RUNNER_URL="http://localhost:12434/engines/v1"
 
+if ! docker info >/dev/null 2>&1; then
+  echo "Starting Docker Desktop..."
+  open -a "Docker Desktop"
+  attempts=0
+  until docker info >/dev/null 2>&1; do
+    attempts=$((attempts + 1))
+    if [ $attempts -ge 30 ]; then
+      echo "Docker Desktop did not start in time."
+      exit 1
+    fi
+    printf "."
+    sleep 2
+  done
+  echo "Docker Desktop is ready."
+fi
+
 echo "Installing frontend dependencies..."
 npm --prefix front-end install
 
