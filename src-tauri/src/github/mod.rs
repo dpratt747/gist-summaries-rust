@@ -34,27 +34,16 @@ pub struct GithubClient {
 
 impl GithubClient {
 
-    pub fn new(token: String) -> Result<Self> {
+    pub fn with_token(token: String) -> Result<Self> {
         let client = Client::builder()
             .user_agent("gist-summary")
             .build()?;
+        let trimmed = token.trim().to_string();
         // Use the provided token, falling back to the GITHUB_TOKEN env var
-        let resolved = (!token.is_empty())
-            .then_some(token)
+        let resolved = (!trimmed.is_empty())
+            .then_some(trimmed)
             .or_else(|| env::var("GITHUB_TOKEN").ok());
         Ok(Self { client, token: resolved })
-    }
-
-    pub fn with_token(token: String) -> Self {
-        let client = Client::builder()
-            .user_agent("gist-summary")
-            .build()
-            .expect("failed to build HTTP client");
-        // Use the provided token, falling back to the GITHUB_TOKEN env var
-        let resolved = (!token.is_empty())
-            .then_some(token)
-            .or_else(|| env::var("GITHUB_TOKEN").ok());
-        Self { client, token: resolved }
     }
 
     fn auth_request(&self, url: &str) -> reqwest::RequestBuilder {

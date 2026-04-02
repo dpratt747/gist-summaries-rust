@@ -28,7 +28,7 @@ async fn get_gists(
     token: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<GistFileRow>, String> {
-    let github = github::GithubClient::with_token(token);
+    let github = github::GithubClient::with_token(token).map_err(|e| e.to_string())?;
     let gists = github
         .get_gists(&username)
         .await
