@@ -1,0 +1,16 @@
+target/
+
+backend/gen/
+backend/ollama-*
+
+front-end/node_modules/
+front-end/dist/
+front-end/.svelte-kit/
+
+.env
+.env.*
+!.env.example
+
+.idea/
+.DS_Store
+/.claude/

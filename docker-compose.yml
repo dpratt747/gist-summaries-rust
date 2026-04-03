@@ -1,0 +1,35 @@
+services:
+  gist-summary:
+    build: .
+    ports:
+      - "8080:8080"
+    models:
+      llm:
+        endpoint_var: OPENAI_API_BASE_URL
+        model_var: OPENAI_MODEL
+    environment:
+      - OPENAI_API_KEY=local
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "3000:8080"
+    models:
+      llm:
+        endpoint_var: OPENAI_API_BASE_URL
+        model_var: OPENAI_API_MODEL
+    environment:
+      - OPENAI_API_KEY=local
+    volumes:
+      - open_webui_data:/app/backend/data
+    restart: unless-stopped
+
+models:
+  llm:
+    model: ai/gemma3:1B-Q4_K_M
+
+volumes:
+  open_webui_data:
+

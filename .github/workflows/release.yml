@@ -1,0 +1,172 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  OLLAMA_VERSION: v0.19.0
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            ollama_url_suffix: ollama-darwin.tgz
+            ollama_archive: tgz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            ollama_url_suffix: ollama-darwin.tgz
+            ollama_archive: tgz
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            ollama_url_suffix: ollama-linux-amd64.tar.zst
+            ollama_archive: zst
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            ollama_url_suffix: ollama-windows-amd64.zip
+            ollama_archive: zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: rust-${{ matrix.target }}-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: rust-${{ matrix.target }}-
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: front-end/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd front-end && npm install
+
+      # Tauri CLI looks for src-tauri/ under the project directory.
+      # Symlink it to backend/ so it finds tauri.conf.json.
+      - name: Link backend as src-tauri (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: ln -s ../backend front-end/src-tauri
+
+      - name: Link backend as src-tauri (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: mklink /D front-end\src-tauri ..\backend
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            zstd
+
+      - name: Download Ollama sidecar (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: |
+          cd backend
+          URL="https://github.com/ollama/ollama/releases/download/${{ env.OLLAMA_VERSION }}/${{ matrix.ollama_url_suffix }}"
+          curl -fL "$URL" -o ollama-archive
+
+          if [ "${{ matrix.ollama_archive }}" = "tgz" ]; then
+            tar xzf ollama-archive
+          elif [ "${{ matrix.ollama_archive }}" = "zst" ]; then
+            zstd -d ollama-archive -o ollama-archive.tar
+            tar xf ollama-archive.tar
+          fi
+
+          FOUND="$(find . -name 'ollama' -type f ! -name '*.tgz' ! -name '*.tar' | head -1)"
+          cp "$FOUND" "ollama-${{ matrix.target }}"
+          chmod +x "ollama-${{ matrix.target }}"
+          rm -rf ollama-archive* bin/ lib/
+          ls -lh "ollama-${{ matrix.target }}"
+
+      - name: Download Ollama sidecar (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd backend
+          $url = "https://github.com/ollama/ollama/releases/download/${{ env.OLLAMA_VERSION }}/${{ matrix.ollama_url_suffix }}"
+          Invoke-WebRequest -Uri $url -OutFile ollama-archive.zip
+          Expand-Archive -Path ollama-archive.zip -DestinationPath ollama-extracted
+          $found = Get-ChildItem -Path ollama-extracted -Recurse -Filter "ollama.exe" | Select-Object -First 1
+          Copy-Item $found.FullName -Destination "ollama-${{ matrix.target }}.exe"
+          Remove-Item -Recurse -Force ollama-archive.zip, ollama-extracted
+          Get-Item "ollama-${{ matrix.target }}.exe"
+
+      - name: Create models directory
+        run: mkdir -p backend/models && touch backend/models/.keep
+        shell: bash
+
+      - name: Build frontend
+        run: cd front-end && npm run build
+
+      - name: Build Tauri app
+        shell: bash
+        run: |
+          # Resolve absolute path to frontend dist so Tauri finds it regardless of CWD
+          DIST_ABS="$(cd front-end/dist && pwd)"
+          # On Windows (Git Bash), convert /d/... to D:/...
+          if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
+            DIST_ABS="$(cygpath -m "$DIST_ABS")"
+          fi
+          cd front-end
+          npx tauri build --target ${{ matrix.target }} \
+            --config "{\"build\":{\"frontendDist\":\"${DIST_ABS}\",\"beforeBuildCommand\":\"\",\"beforeDevCommand\":\"\"}}"
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          find . -path "*/release/bundle/*" -type f \( -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.exe" \) -exec cp {} artifacts/ \;
+          ls -lh artifacts/ || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: gist-summary-${{ matrix.target }}
+          path: artifacts/*
+
+  release:
+    if: always() && !cancelled()
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          name: "Gist Summary ${{ github.ref_name }}"
+          body: "See the assets below to download for your platform."
+          files: artifacts/*

@@ -1,0 +1,4 @@
+# Model weights are pre-pulled by binaries/pull-model.sh
+# Too large to commit (~815MB+)
+*
+!.gitignore
