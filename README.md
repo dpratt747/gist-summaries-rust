@@ -50,7 +50,35 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-This builds for macOS (ARM + Intel), Linux (x86_64), and Windows (x86_64), then creates a GitHub Release with all platform artifacts.
+This builds for macOS (ARM + Intel), Linux (x86_64), and Windows (x86_64), then creates a GitHub Release with all platform artefacts.
+
+## Installing from a release
+
+### macOS
+
+1. Download the `.dmg` for your architecture (`aarch64` for Apple Silicon, `x64` for Intel)
+2. Open the `.dmg` and drag **gist-summary** to Applications
+3. The app is unsigned, so macOS will block it. Run this once to allow it:
+   ```bash
+   xattr -cr /Applications/gist-summary.app
+   ```
+4. Open the app normally
+
+### Windows
+
+Download and run the `.msi` installer or the `x64-setup.exe`.
+
+### Linux
+
+Download the `.deb` or `.AppImage`:
+```bash
+# Debian/Ubuntu
+sudo dpkg -i gist-summary_*.deb
+
+# Or run the AppImage directly
+chmod +x gist-summary_*.AppImage
+./gist-summary_*.AppImage
+```
 
 ## Configuration
 

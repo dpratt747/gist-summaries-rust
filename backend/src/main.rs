@@ -6,17 +6,25 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct GistFileRow {
     filename: String,
     gist_url: String,
 }
 
+#[derive(Debug, Serialize, Clone)]
+struct LoadProgress {
+    phase: String,
+    done: usize,
+    total: usize,
+}
+
 struct AppState {
     llm: llm::LlmClient,
     gist_contents: Mutex<HashMap<String, String>>,
+    config_dir: std::path::PathBuf,
     _ollama: ollama::OllamaProcess,
 }
 
@@ -28,11 +36,18 @@ fn content_key(gist_url: &str, filename: &str) -> String {
 async fn get_gists(
     username: String,
     token: String,
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<GistFileRow>, String> {
     let github = github::GithubClient::with_token(token).map_err(|e| e.to_string())?;
     let gists = github
-        .get_gists(&username)
+        .get_gists(&username, |phase, done, total| {
+            let _ = app.emit("load-progress", LoadProgress {
+                phase: phase.to_string(),
+                done,
+                total,
+            });
+        })
         .await
         .map_err(|e| e.to_string())?;
 
@@ -84,15 +99,9 @@ async fn summarise_file(
         .map_err(|e| e.to_string())
 }
 
-fn env_path() -> Result<std::path::PathBuf, String> {
-    std::env::current_dir()
-        .map(|d| d.join(".env"))
-        .map_err(|e| e.to_string())
-}
-
 #[tauri::command]
-async fn load_token() -> Result<String, String> {
-    let path = env_path()?;
+async fn load_token(state: State<'_, AppState>) -> Result<String, String> {
+    let path = state.config_dir.join(".env");
     if !path.exists() {
         return Ok(String::new());
     }
@@ -106,8 +115,8 @@ async fn load_token() -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn save_token(token: String) -> Result<(), String> {
-    let path = env_path()?;
+async fn save_token(token: String, state: State<'_, AppState>) -> Result<(), String> {
+    let path = state.config_dir.join(".env");
     let mut lines: Vec<String> = if path.exists() {
         std::fs::read_to_string(&path)
             .map_err(|e| e.to_string())?
@@ -144,9 +153,20 @@ fn main() {
 
             let llm = llm::LlmClient::new(ollama::base_url(), ollama::model());
 
+            // In dev mode, use the current working directory so .env stays in the project.
+            // In bundled mode, use Tauri's app config directory.
+            let config_dir = if cfg!(debug_assertions) {
+                std::env::current_dir().unwrap_or_default()
+            } else {
+                app.path().app_config_dir()
+                    .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default())
+            };
+            std::fs::create_dir_all(&config_dir).ok();
+
             app.manage(AppState {
                 llm,
                 gist_contents: Mutex::new(HashMap::new()),
+                config_dir,
                 _ollama: ollama,
             });
             Ok(())
